@@ -1,0 +1,93 @@
+---
+- hosts: all
+  become: true
+
+  vars:
+    php_packages:
+      - php
+      - php-mysqlnd
+      - php-cli
+      - php-json
+      - php-curl
+      - php-mbstring
+      - php-xml
+      - php-zip
+    matomo_db_name: "matomo"
+    matomo_db_user: "user"
+    matomo_db_password: "password"
+
+  tasks:
+    - name: Update all packages
+      yum:
+        name: "*"
+        state: latest
+
+    - name: Install necessary packages
+      yum:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - httpd
+        - mariadb-server
+        - mariadb
+        - curl
+        - unzip
+        - git
+
+    - name: Enable and start Apache
+      service:
+        name: httpd
+        state: started
+        enabled: true
+
+    - name: Enable and start MariaDB
+      service:
+        name: mariadb
+        state: started
+        enabled: true
+
+    - name: Install PHP and extensions
+      yum:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ php_packages }}"
+
+    - name: Create MariaDB database
+      mysql_db:
+        name: "{{ matomo_db_name }}"
+        state: present
+
+    - name: Create MariaDB user
+      mysql_user:
+        name: "{{ matomo_db_user }}"
+        password: "{{ matomo_db_password }}"
+        priv: "{{ matomo_db_name }}.*:ALL"
+        state: present
+
+    - name: Configure virtual host for Matomo
+      copy:
+        dest: /etc/httpd/conf.d/matomo.conf
+        content: |
+          <VirtualHost *:80>
+              ServerName vm.matomo.com
+              DocumentRoot /vagrant/matomo
+              DirectoryIndex index.php
+              <Directory /vagrant/matomo>
+                  Options Indexes FollowSymLinks
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+              ErrorLog /var/log/httpd/matomo_error.log
+              CustomLog /var/log/httpd/matomo_access.log combined
+          </VirtualHost>
+      notify:
+        - Restart Apache
+
+    - name: Set timezone to Asia/Tokyo
+      command: timedatectl set-timezone Asia/Tokyo
+
+  handlers:
+    - name: Restart Apache
+      service:
+        name: httpd
+        state: restarted
