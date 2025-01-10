@@ -113,11 +113,18 @@ EOF
       echo "User 'matomo' already exists."
     fi
 
+    # MariaDBのbind-addressを0.0.0.0に設定
+    sudo sed -i 's/^bind-address.*/bind-address=0.0.0.0/' /etc/my.cnf.d/mariadb-server.cnf
+    sudo systemctl restart mariadb
+
+    # /etc/hosts にdbのエントリを追加
+    echo "127.0.0.1 db" | sudo tee -a /etc/hosts
+
     # Apache設定
     sudo mkdir -p /etc/ssl/certs
     sudo mkdir -p /etc/ssl/private
-    sudo cp /vagrant/mycert.crt /etc/ssl/certs/mycert.crt
-    sudo cp /vagrant/mykey.key /etc/ssl/private/mykey.key
+    sudo mv /vagrant/mycert.crt /etc/ssl/certs/mycert.crt
+    sudo mv /vagrant/mykey.key /etc/ssl/private/mykey.key
     sudo chmod 600 /etc/ssl/private/mykey.key
     sudo systemctl enable httpd
 
